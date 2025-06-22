@@ -47,8 +47,8 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>We need your permission to use Face ID for secure authentication.</string>
-	<!-- إضافة إذن الكاميرا -->
 	<key>NSCameraUsageDescription</key>
-	<string>نحتاج إلى الوصول إلى الكاميرا لمسح أكواد QR</string>
+    <string>نحتاج إلى استخدام الكاميرا لمسح رموز QR</string>
+
 </dict>
 </plist>

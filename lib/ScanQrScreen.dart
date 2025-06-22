@@ -1,153 +1,154 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:barcode_scan2/barcode_scan2.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_vibrate/flutter_vibrate.dart';
 
 class ScanQrScreen extends StatefulWidget {
   const ScanQrScreen({super.key});
 
   @override
-  _ScanQrScreenState createState() => _ScanQrScreenState();
+  State<ScanQrScreen> createState() => _ScanQrScreenState();
 }
 
 class _ScanQrScreenState extends State<ScanQrScreen> {
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  Barcode? result;
-  QRViewController? controller;
   bool isProcessing = false;
-  bool hasCameraPermission = false;
-  bool isCameraInitialized = false;
+  String? scannedCode;
 
   @override
   void initState() {
     super.initState();
-    _requestCameraPermission().then((_) {
-      print('Camera permission check completed.');
-    }).catchError((e) {
-      print('Error in permission check: $e');
-    });
+    _checkCameraPermission();
   }
 
-  Future<void> _requestCameraPermission() async {
-    print('Requesting camera permission...');
+  Future<void> _checkCameraPermission() async {
+    print('Checking camera permission...');
     PermissionStatus status = await Permission.camera.status;
-    print('Initial camera permission status: $status');
-
-    if (status.isDenied || status.isPermanentlyDenied) {
-      print('Permission denied or permanently denied. Requesting...');
-      status = await Permission.camera.request();
-      print('Camera permission status after request: $status');
-    }
+    print('Camera permission status: $status');
 
     if (status.isGranted) {
-      print('Camera permission granted successfully.');
-      setState(() {
-        hasCameraPermission = true;
-      });
+      print('Camera permission is already granted.');
+      _scanQrCode();
     } else {
-      print('Camera permission not granted: $status');
-      setState(() {
-        hasCameraPermission = false;
-      });
-      if (status.isPermanentlyDenied) {
-        print('Permission permanently denied. Opening app settings...');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('الرجاء منح إذن الكاميرا من إعدادات الجهاز'),
-            action: SnackBarAction(
-              label: 'الإعدادات',
-              onPressed: () async {
-                await openAppSettings();
-              },
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    controller?.dispose();
-    super.dispose();
-  }
-
-  void _onQRViewCreated(QRViewController controller) {
-    try {
-      print('Initializing QRView...');
-      this.controller = controller;
-      setState(() {
-        isCameraInitialized = true;
-      });
-      controller.scannedDataStream.listen((scanData) async {
-        if (!isProcessing && scanData.code != null && hasCameraPermission) {
-          print('QR Code scanned: ${scanData.code}');
-          setState(() {
-            result = scanData;
-            isProcessing = true;
-          });
-          await processQrData(scanData.code!);
-        }
-      }, onError: (error) {
-        print('Error scanning QR: $error');
-        setState(() {
-          isProcessing = false;
-          isCameraInitialized = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في تشغيل الكاميرا: $error')),
-        );
-      });
-    } catch (e) {
-      print('Error initializing QRView: $e');
-      setState(() {
-        isCameraInitialized = false;
-      });
+      print('Camera permission denied: $status');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ في تهيئة الكاميرا: $e')),
+        SnackBar(
+          content: const Text('Camera permission is required. Please enable it in settings.'),
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: () async {
+              await openAppSettings();
+            },
+          ),
+        ),
       );
     }
   }
 
-  Future<void> processQrData(String qrData) async {
+  Future<void> _scanQrCode() async {
+    try {
+      print('Starting QR code scan...');
+      var result = await BarcodeScanner.scan();
+      print('Scan result: ${result.rawContent}');
+
+      if (result.rawContent.isNotEmpty) {
+        setState(() {
+          scannedCode = result.rawContent;
+          isProcessing = true;
+        });
+        await _processScannedData(scannedCode!);
+      } else {
+        print('No QR code scanned.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No QR Code scanned'),
+            action: SnackBarAction(
+              label: 'Retry Scan',
+              onPressed: _scanQrCode,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error scanning QR code: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during scan: $e'),
+          action: SnackBarAction(
+            label: 'Retry Scan',
+            onPressed: _scanQrCode,
+          ),
+        ),
+      );
+    } finally {
+      setState(() {
+        isProcessing = false;
+      });
+    }
+  }
+
+  Future<void> _processScannedData(String qrData) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         print('User not logged in.');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('يرجى تسجيل الدخول أولاً')),
+          SnackBar(
+            content: const Text('Please log in first'),
+            action: SnackBarAction(
+              label: 'Retry Scan',
+              onPressed: _scanQrCode,
+            ),
+          ),
         );
-        setState(() => isProcessing = false);
-        controller?.resumeCamera();
         return;
       }
 
-      print('Checking if QR code has been scanned before...');
+      print('Checking if QR code already scanned: $qrData');
       final historyRef = FirebaseFirestore.instance
           .collection('history')
-          .where('userId', isEqualTo: user.uid)
           .where('qrCode', isEqualTo: qrData);
-      final querySnapshot = await historyRef.get();
+      final existing = await historyRef.get();
 
-      if (querySnapshot.docs.isNotEmpty) {
-        print('QR code already scanned.');
+      if (existing.docs.isNotEmpty) {
+        print('QR code already exists in history: $qrData');
+        for (var doc in existing.docs) {
+          print('Existing QR Code in history: ${doc['qrCode']}');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم مسح هذا الكود من قبل!')),
+          SnackBar(
+            content: const Text('This QR Code has already been used!'),
+            action: SnackBarAction(
+              label: 'Retry Scan',
+              onPressed: _scanQrCode,
+            ),
+          ),
         );
-        setState(() => isProcessing = false);
-        controller?.resumeCamera();
         return;
       }
 
       print('Processing QR data: $qrData');
-      final category = determineCategory(qrData);
-      final points = await callAiModel(qrData);
+      final category = _determineCategory(qrData);
+
+      if (category == 'Unknown') {
+        print('QR code category is unknown: $qrData');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('This QR Code is unknown'),
+            action: SnackBarAction(
+              label: 'Retry Scan',
+              onPressed: _scanQrCode,
+            ),
+          ),
+        );
+        return;
+      }
+
+      final points = await _callAiModel(qrData);
 
       print('Updating user points: $points');
-      await updateUserPoints(points);
+      await _updateUserPoints(points);
 
       print('Saving to Firestore history...');
       await FirebaseFirestore.instance.collection('history').add({
@@ -158,39 +159,80 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      // Fetch total points from Firestore
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      int totalPoints = userDoc.exists && userDoc['points'] != null ? userDoc['points'] : 0;
+
+      // Fetch the number of items in the same category
+      QuerySnapshot categoryItems = await FirebaseFirestore.instance
+          .collection('history')
+          .where('userId', isEqualTo: user.uid)
+          .where('category', isEqualTo: category)
+          .get();
+      int categoryCount = categoryItems.docs.length;
+
       print('QR processing successful.');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تمت إضافة $points نقطة بنجاح! الفئة: $category')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Scan Successful!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Category: $category'),
+              Text('Points Added: $points'),
+              Text('Total Points: $totalPoints'),
+              Text('Items in $category: $categoryCount'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
-      Navigator.pop(context);
     } catch (e) {
       print('Error processing QR data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حدث خطأ: $e')),
+        SnackBar(
+          content: Text('Error occurred: $e'),
+          action: SnackBarAction(
+            label: 'Retry Scan',
+            onPressed: _scanQrCode,
+          ),
+        ),
       );
-      setState(() => isProcessing = false);
-      controller?.resumeCamera();
     }
   }
 
-  String determineCategory(String qrData) {
-    if (qrData.contains('plastic')) return 'Plastic Bottles';
-    if (qrData.contains('paper')) return 'Paper';
-    if (qrData.contains('glass')) return 'Glass';
-    if (qrData.contains('metal')) return 'Metal Cans';
+  String _determineCategory(String qrData) {
+    if (qrData.contains('plastic') || qrData.contains('بلاستيك')) return 'Plastic';
+    if (qrData.contains('metal') || qrData.contains('معدن')) return 'Metal';
+    if (qrData.contains('cardboard') || qrData.contains('كرتون')) return 'Cardboard';
+    if (qrData.contains('paper') || qrData.contains('ورق')) return 'Paper';
+    if (qrData.contains('glass') || qrData.contains('زجاج')) return 'Glass';
+    if (qrData.contains('trash') || qrData.contains('نفايات')) return 'Trash';
     return 'Unknown';
   }
 
-  Future<int> callAiModel(String qrData) async {
+  Future<int> _callAiModel(String qrData) async {
     await Future.delayed(const Duration(seconds: 1));
-    if (qrData.contains('plastic')) return 10;
-    if (qrData.contains('paper')) return 5;
-    if (qrData.contains('glass')) return 15;
-    if (qrData.contains('metal')) return 20;
+    if (qrData.contains('plastic') || qrData.contains('بلاستيك')) return 10;
+    if (qrData.contains('metal') || qrData.contains('معدن')) return 20;
+    if (qrData.contains('cardboard') || qrData.contains('كرتون')) return 8;
+    if (qrData.contains('paper') || qrData.contains('ورق')) return 5;
+    if (qrData.contains('glass') || qrData.contains('زجاج')) return 15;
+    if (qrData.contains('trash') || qrData.contains('نفايات')) return 2;
     return 0;
   }
 
-  Future<void> updateUserPoints(int points) async {
+  Future<void> _updateUserPoints(int points) async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       DocumentReference userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
@@ -201,60 +243,100 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         },
         SetOptions(merge: true),
       );
+      print('Points updated successfully: $points');
     } else {
-      throw Exception('المستخدم غير مسجل');
+      throw Exception('User not logged in');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: !hasCameraPermission
-          ? const Center(
-        child: Text(
-          'الرجاء منح إذن الكاميرا',
-          style: TextStyle(color: Colors.white),
-        ),
-      )
-          : !isCameraInitialized
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-        children: [
-          QRView(
-            key: qrKey,
-            onQRViewCreated: _onQRViewCreated,
-            overlay: QrScannerOverlayShape(
-              borderColor: Colors.greenAccent,
-              borderRadius: 10,
-              borderLength: 30,
-              borderWidth: 10,
-              cutOutSize: 300,
-            ),
+      appBar: AppBar(
+        title: const Text('Scan Waste QR'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF2E2E2E), Color(0xFF1A1A1A)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
+        ),
+        child: Center(
+          child: isProcessing
+              ? const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.greenAccent),
+          )
+              : Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.qr_code_scanner,
+                size: 100,
+                color: Colors.white70,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Tap to scan QR Code',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black26,
+                      offset: Offset(1, 1),
+                      blurRadius: 3,
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              AnimatedScale(
+                scale: 1.0,
+                duration: const Duration(milliseconds: 500),
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (await Vibrate.canVibrate) {
+                      Vibrate.feedback(FeedbackType.light);
+                    }
+                    _scanQrCode();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    elevation: 5,
                   ),
-                  const Text(
-                    'Scan Waste QR',
+                  child: const Text(
+                    'Scan QR Code',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
+                      color: Colors.black,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 48),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+              const Text(
+                'Ensure the QR Code is clear and well-lit',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

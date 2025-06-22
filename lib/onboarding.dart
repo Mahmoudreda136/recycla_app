@@ -27,7 +27,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _controller.forward().whenComplete(() {
-      // الانتقال إلى صفحات التعريف بعد انتهاء الأنيميشن
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
@@ -49,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           Center(
             child: ScaleTransition(
               scale: _scaleAnimation,
-              child: const LogoContainer(),
+              child: const LogoContainer(icon: Icons.public),
             ),
           ),
         ],
@@ -69,7 +68,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  final int _totalPages = 3; // عدد الصفحات (يمكنك تغييره)
+  final int _totalPages = 3;
 
   @override
   void dispose() {
@@ -84,7 +83,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      // الانتقال إلى WelcomeScreen بدلاً من LoginPage
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const WelcomeScreen()),
       );
@@ -92,7 +90,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _skip() {
-    // الانتقال إلى WelcomeScreen عند الضغط على Skip
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const WelcomeScreen()),
     );
@@ -116,30 +113,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   },
                   children: const [
                     OnboardingPage(
-                      imagePath: 'assets/planet.png',
+                      icon: Icons.public,
                       title: 'Save our Planet!',
                       subtitle: 'Sort trash with others to protect our environment.',
                     ),
                     OnboardingPage(
-                      imagePath: 'assets/community.png',
+                      icon: Icons.group,
                       title: 'Join the Community!',
                       subtitle: 'Connect with users worldwide to make a difference.',
                     ),
                     OnboardingPage(
-                      imagePath: 'assets/recycle.png',
+                      icon: Icons.recycling,
                       title: 'Start Today!',
                       subtitle: 'Help save the planet for future generations.',
                     ),
                   ],
                 ),
               ),
-              // Dots Indicator and Buttons
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Skip Button
                     TextButton(
                       onPressed: _skip,
                       child: Text(
@@ -150,7 +145,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                     ),
-                    // Dots Indicator
                     Row(
                       children: List.generate(
                         _totalPages,
@@ -168,7 +162,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                     ),
-                    // Next Button
                     TextButton(
                       onPressed: _nextPage,
                       child: Text(
@@ -192,13 +185,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
 // Onboarding Page Widget
 class OnboardingPage extends StatelessWidget {
-  final String imagePath;
+  final IconData icon;
   final String title;
   final String subtitle;
 
   const OnboardingPage({
     super.key,
-    required this.imagePath,
+    required this.icon,
     required this.title,
     required this.subtitle,
   });
@@ -209,7 +202,7 @@ class OnboardingPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          LogoContainer(imagePath: imagePath),
+          LogoContainer(icon: icon),
           const SizedBox(height: 30),
           Text(
             title,
@@ -255,7 +248,6 @@ class WelcomeScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Title: Recycle
                 Text(
                   'Recycle',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
@@ -264,22 +256,16 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Recycle Logo
                 Container(
                   width: 100,
                   height: 100,
-                  child: Image.asset(
-                    'assets/recycle_logo.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.recycling,
-                      color: Colors.white,
-                      size: 50,
-                    ),
+                  child: const Icon(
+                    Icons.recycling,
+                    color: Colors.white,
+                    size: 70,
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Subtitle and Description
                 Text(
                   "Let's get Started",
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -295,27 +281,53 @@ class WelcomeScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 40),
-                // SignUp Now Button
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/signup');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C4B4), // لون الزر (مطابق للصورة: teal)
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacementNamed('/signup');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C4B4),
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text(
+                        'SignUp Now',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontFamily: 'Roboto',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'SignUp Now',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontFamily: 'Roboto',
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacementNamed('/login');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[700],
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontFamily: 'Roboto',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -326,11 +338,11 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-// Modified LogoContainer to accept imagePath
+// Modified LogoContainer to accept icon
 class LogoContainer extends StatelessWidget {
-  final String imagePath;
+  final IconData icon;
 
-  const LogoContainer({super.key, this.imagePath = 'assets/planet.png'});
+  const LogoContainer({super.key, this.icon = Icons.public});
 
   @override
   Widget build(BuildContext context) {
@@ -352,17 +364,11 @@ class LogoContainer extends StatelessWidget {
           width: 2,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(25.0),
-        child: Image.asset(
-          imagePath,
-          fit: BoxFit.contain,
+      child: Center(
+        child: Icon(
+          icon,
           color: Colors.white,
-          errorBuilder: (context, error, stackTrace) => const Icon(
-            Icons.image_not_supported,
-            color: Colors.white,
-            size: 50,
-          ),
+          size: 70,
         ),
       ),
     );
@@ -375,9 +381,9 @@ class AppTitleText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Save our planet!', // النص الجديد من الصورة
+      'Save our planet!',
       style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-        fontSize: 28, // ضبط الحجم ليتناسب مع التصميم
+        fontSize: 28,
       ),
     );
   }
@@ -389,7 +395,7 @@ class AppSubtitleText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Sort trash with other users and help save the planet for posterity', // النص الجديد من الصورة
+      'Sort trash with other users and help save the planet for posterity',
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
         shadows: const [
           Shadow(
@@ -398,9 +404,9 @@ class AppSubtitleText extends StatelessWidget {
             offset: Offset(0, 5),
           ),
         ],
-        fontSize: 16, // ضبط الحجم ليتناسب مع التصميم
+        fontSize: 16,
       ),
-      textAlign: TextAlign.center, // محاذاة النص في المنتصف
+      textAlign: TextAlign.center,
     );
   }
 }
